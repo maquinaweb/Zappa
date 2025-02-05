@@ -13,6 +13,7 @@ import re
 import shutil
 import string
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -262,6 +263,7 @@ class Zappa:
     apigateway_policy = None
     cloudwatch_log_levels = ["OFF", "ERROR", "INFO"]
     xray_tracing = False
+    architecture = ["x86_64"]
 
     ##
     # Credentials
@@ -282,6 +284,7 @@ class Zappa:
         tags=(),
         endpoint_urls={},
         xray_tracing=False,
+        architecture=["x86_64"],
     ):
         """
         Instantiate this new Zappa instance, loading any custom credentials if necessary.
@@ -305,12 +308,23 @@ class Zappa:
 
         # TODO: Support PEP600 properly (https://peps.python.org/pep-0600/)
         self.manylinux_suffix_start = f"cp{self.runtime[6:].replace('.', '')}"
+
+        self.architecture = architecture
+
+        if sys.version_info.major == 3 and sys.version_info.minor < 6:
+            raise ValueError("Python 3.6 or newer is required.")
+
         self.manylinux_suffixes = ("_2_24", "2014", "2010", "1")
+        self.arch_suffixes = ("x86_64", "arm64", "aarch64")
+
         # TODO: Support aarch64 architecture
         self.manylinux_wheel_file_match = re.compile(
-            rf'^.*{self.manylinux_suffix_start}-(manylinux_\d+_\d+_x86_64[.])?manylinux({"|".join(self.manylinux_suffixes)})_x86_64[.]whl$'  # noqa: E501
+            rf'^.*{self.manylinux_suffix_start}-(manylinux_\d+_\d+_({"|".join(self.arch_suffixes)})'
+            rf'[.])?manylinux({"|".join(self.manylinux_suffixes)})_({"|".join(self.arch_suffixes)})[.]whl$'
         )
-        self.manylinux_wheel_abi3_file_match = re.compile(rf"^.*cp3.-abi3-manylinux.*_x86_64[.]whl$")
+        self.manylinux_wheel_abi3_file_match = re.compile(
+            f'^.*cp3.-abi3-manylinux({"|".join(self.manylinux_suffixes)})_({"|".join(self.arch_suffixes)}).whl$'
+        )
 
         self.endpoint_urls = endpoint_urls
         self.xray_tracing = xray_tracing
@@ -876,7 +890,7 @@ class Zappa:
         else:
             # Check if we already have a cached copy
             wheel_name = re.sub(r"[^\w\d.]+", "_", package_name, re.UNICODE)
-            wheel_file = f"{wheel_name}-{package_version}-*_x86_64.whl"
+            wheel_file = f"{wheel_name}-{package_version}-*_{self.architecture[0]}.whl"
             wheel_path = os.path.join(cached_wheels_dir, wheel_file)
 
             for pathname in glob.iglob(wheel_path):
@@ -1123,6 +1137,7 @@ class Zappa:
             KMSKeyArn=aws_kms_key_arn,
             TracingConfig={"Mode": "Active" if self.xray_tracing else "PassThrough"},
             Layers=layers,
+            Architectures=self.architecture,
         )
         if not docker_image_uri:
             kwargs["Runtime"] = runtime

@@ -2259,6 +2259,7 @@ class ZappaCLI:
         self.dead_letter_config = {"TargetArn": dead_letter_arn} if dead_letter_arn else {}
         self.cognito = self.stage_config.get("cognito", None)
         self.num_retained_versions = self.stage_config.get("num_retained_versions", None)
+        self.architecture = [self.stage_config.get("architecture", "x86_64")]
 
         # Check for valid values of num_retained_versions
         if self.num_retained_versions is not None and type(self.num_retained_versions) is not int:
@@ -2328,6 +2329,7 @@ class ZappaCLI:
             tags=self.tags,
             endpoint_urls=self.stage_config.get("aws_endpoint_urls", {}),
             xray_tracing=self.xray_tracing,
+            architecture=self.architecture,
         )
 
         for setting in CUSTOM_SETTINGS:
